@@ -9,38 +9,6 @@ class SelectRelated(object):
         self.project = project
         self.map = map
 
-    @staticmethod
-    def chunks(l, n):
-        """Yield successive n-sized chunks from l."""
-        for i in range(0, len(l), n):
-            yield l[i:i + n]
-
-    @staticmethod
-    def create_sql(table: str, field: str, values) -> str:
-        """ Creates an SQL query against input table of the form 'field IN (values)' or field = value """
-        field_delim = arcpy.AddFieldDelimiters(table, field)
-        chunk_value = 950
-
-        if isinstance(values, (list, tuple, set)):
-            if not values:
-                return '1 = 1'
-            query = '{} IN ({})'
-            # Remove duplicates and sort for indexed fields
-            values = sorted(set(values))
-        else:
-            query = '{} = {}'
-            values = [values]
-
-        # Wrap values in text-like fields so that expression is 'field op ("x", "y", "z")'
-        if isinstance(values[0], str):
-            # String can contain the wraping single quote, so it need to be converted
-            # to two single quotes
-            vals = [f"""'{v.replace("'", "''")}'""" for v in values]
-        else:
-            vals = list(map(str, values))
-        for chunk_value in SelectRelated.chunks(vals, chunk_value):
-            yield query.format(field_delim, ",".join(chunk_value))
-
     def get_workspace(self, layer_path):
 
         desc = arcpy.Describe(str(pathlib.Path(layer_path).parent))
