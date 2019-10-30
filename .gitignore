@@ -1,0 +1,47 @@
+__pycache__
+
+# Visual Studio
+*.suo
+*.vbproj.user
+*.sln
+*.pyproj
+*.pyproj.user
+bin/
+obj/
+UtilityNetworkConfigurationTools/*.xml
+Debug/
+Release/
+xray/
+.idea/
+# Snap backups
+*.7z
+*.gdb/
+*.pyc
+*pyt.xml
+_-_*
+sphinx/html/
+*.log
+logs/
+/Scripts/**/*.txt
+/Scripts/**/*.xml
+/Scripts/ApplyUNSchema/Gas/schema.ini
+ImportLog/
+Index/
+scratch/
+*.pyHistory
+/Other/sphinx/*
+/SourceData/Water/Index/Thumbnail
+/SourceData/Water/ImportLog
+/SourceData/Water/Index/Water Data Migration_temp
+/SourceData/Water/Development
+UtilityNetworkConfigurationTools.zip
+AdminTools.pyt.xml
+/_dev.py
+/AdminToolsForUtil/_dev.py
+AGATOverview.csv.xml
+AGATReport.csv.xml
+FIELDOverview.csv.xml
+FIELDReport.csv.xml
+/*/Data Models/*/*/*.ndld
+/*/Data Models/*/*/*.ndbd
+~*.*

@@ -1,4 +1,6 @@
 import arcpy
+import os
+import pathlib
 
 
 class SelectRelated(object):
@@ -39,17 +41,34 @@ class SelectRelated(object):
         for chunk_value in SelectRelated.chunks(vals, chunk_value):
             yield query.format(field_delim, ",".join(chunk_value))
 
-    def _related_tables_url(self, service_url: str):
+    def get_workspace(self, layer_path):
 
-        des = arcpy.Describe(service_url)
-        rc = {}
-        fc = {}
-        tb = {}
-        for child in des.children:
-            if child.dataType == "FeatureClass":
-                fc[child.name] = child
-            elif child.dataType == "RelationshipClass":
-                rc[child.name] = child
+        desc = arcpy.Describe(str(pathlib.Path(layer_path).parent))
+        if desc.dataType == 'FeatureDataset':
+            return pathlib.Path(desc.catalogPath).parent
+        return pathlib.Path(desc.catalogPath)
+
+    def rc_info(self, layer):
+        desc = arcpy.Describe(layer)
+        if not desc.relationshipClassNames:
+            return None
+        workspace = self.get_workspace(desc.catalogPath)
+        rc_class_info = {}
+        for rc_name in desc.relationshipClassNames:
+            rc = str(workspace / rc_name)
+            if arcpy.Exists(rc):
+                rc_desc = arcpy.Describe(rc)
+                if rc_desc.isAttachmentRelationship:
+                    continue
+                for cls in rc_desc.originClassNames:
+                    if cls == desc.name:
+                        continue
+                    rc_class_info[cls] = [cl_key[0] for cl_key in rc_desc.originClassKeys if cl_key[1] == 'OriginPrimary'][0]
+                for cls in rc_desc.destinationClassNames:
+                    if cls == desc.name:
+                        continue
+                    rc_class_info[cls] = [cl_key[0] for cl_key in rc_desc.originClassKeys if cl_key[1] == 'OriginForeign'][0]
+        return rc_class_info
 
     def main(self):
         # get the current project and map
@@ -68,46 +87,26 @@ class SelectRelated(object):
             cim_def = layer.getDefinition('V2')
             cim_lookup[cim_def.uRI] = layer
 
-        feature_layers = {}
+        cims_processed = []
+        fields = ['GlobalID']
         for layer in layers:
+            rc_info = self.rc_info(layer)
             cim_def = layer.getDefinition('V2')
-            if isinstance(cim_def, arcpy.cim.CIMVectorLayers.CIMSubtypeGroupLayer):
-                desc = arcpy.Describe(layer)
-                oid_field_name = desc.OIDFieldName
-                oids = set()
-                for sub_layer in cim_def.subtypeLayers:
-                    selection_set = cim_lookup[sub_layer].getSelectionSet()
-                    if selection_set:
-                        oids.update(selection_set)
-                    #cim_lookup[sub_layer] = {'data_source': layer.dataSource}
-                where_clauses = None
-                if oids:
-                    where_clauses = SelectRelated.create_sql(layer, oid_field_name, oids)
-                cim_lookup[sub_layer] = {'data_source': layer.dataSource,
-                                         'where': where_clauses}
-            else:
-                cim_lookup[cim_def.uRI] = {'data_source': layer.dataSource}
-
-        # self._related_tables_url(un_layer)
-
-        for subtype_layer, layers_cims in subtype_layers.items():
-            oids = []
-            oid_field_name = None
-            for layer_cim in layers_cims:
-                layer = cim_lookup[layer_cim]
-                desc = arcpy.Describe(layer)
-                if not oid_field_name:
-                    oid_field_name = desc.OIDFieldName
-                fidSet = desc.FIDSet
-                if not fidSet:
-                    continue
-                fidList = fidSet.replace(' ', '').split(';')
-                oids.extend(fidList)
-            if not oids:
+            if cim_def.uRI in cims_processed:
                 continue
-            where_clauses = SelectRelated.create_sql(subtype_layer, oid_field_name, oids)
-            for where_clause in where_clauses:
-                arcpy.SelectLayerByAttribute_management(inView, 'ADD_TO_SELECTION', whereClause)
+            GlobalIDs = set()
+            if isinstance(cim_def, arcpy.cim.CIMVectorLayers.CIMSubtypeGroupLayer):
+                for sub_layer_cim in cim_def.subtypeLayers:
+                    cims_processed.append(sub_layer_cim)
+                    if cim_lookup[sub_layer_cim].getSelectionSet() is not None:
+                        GlobalIDs.update({row[0] for row in arcpy.da.SearchCursor(cim_lookup[sub_layer_cim], fields)})
+
+            else:
+                cims_processed.append(cim_def.uRI)
+                if layer.getSelectionSet() is not None:
+                    GlobalIDs = {row[0] for row in arcpy.da.SearchCursor(layer, fields)}
+            if GlobalIDs:
+                print(f'{cim_def.name}: found {len(GlobalIDs)} global ids.')
 
 
 if __name__ == '__main__':
