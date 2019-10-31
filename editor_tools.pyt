@@ -1,14 +1,4 @@
-import logging
-import os
-import pathlib
-from datetime import datetime
-from typing import List
-
-import arcpy
-
-
-[logging.getLogger(x).setLevel('DEBUG') for x in ['utility_solutions', 'untools']]
-
+from un_editor_solutions import SelectRelated
 class Toolbox(object):
     def __init__(self):
         """Define the toolbox (the name of the toolbox is the name of the
@@ -17,7 +7,7 @@ class Toolbox(object):
         self.alias = "utilsol_Editor_Tools"
 
         # List of tool classes associated with this toolbox
-        self.tools = []
+        self.tools = [SelectRelatedRecords]
 
 
 class SelectRelatedRecords(object):
@@ -53,4 +43,4 @@ class SelectRelatedRecords(object):
 
     @staticmethod
     def run():
-        pass
+        SelectRelated().main()
