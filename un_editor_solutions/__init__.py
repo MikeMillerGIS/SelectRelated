@@ -1,12 +1,15 @@
+from functools import lru_cache
+
 import arcpy
 import os
 import pathlib
-
+import re
 
 class SelectRelated(object):
     def __init__(self, project='CURRENT', pro_map=None):
         self.project = project
         self.pro_map = pro_map
+        self.pattern = re.compile(r'L(\d+).*')
 
     @staticmethod
     def chunks(l, n):
@@ -48,6 +51,10 @@ class SelectRelated(object):
             return pathlib.Path(desc.catalogPath).parent
         return pathlib.Path(desc.catalogPath)
 
+    @lru_cache()
+    def describe_workspace(self, workspace):
+        return arcpy.Describe(workspace)
+
     def rc_info(self, layer):
         rc_class_info = {}
         desc = arcpy.Describe(layer)
@@ -55,10 +62,34 @@ class SelectRelated(object):
             return rc_class_info
         if not desc.relationshipClassNames:
             return rc_class_info
-        workspace = self.get_workspace(desc.catalogPath)
-        for rc_name in desc.relationshipClassNames:
-            rc = str(workspace / rc_name)
-            if arcpy.Exists(rc):
+        client_server = not str(desc.path).startswith('http')
+        if not client_server:
+            workspace = desc.path
+            workspace_desc = self.describe_workspace(workspace.lower())
+            workspace_lookup = {child.name: child for child in workspace_desc.children}
+            for rc_name in desc.relationshipClassNames:
+                if rc_name not in workspace_lookup:
+                    continue
+                rc_desc = workspace_lookup[rc_name]
+                if rc_desc.isAttachmentRelationship:
+                    continue
+                # Note: Commented out as only supporting Origin selections pushed to Destinations **
+                # for cls in rc_desc.originClassNames:
+                #     if cls == desc.name:
+                #         continue
+                #     rc_class_info[cls] = \
+                #     [cl_key[0] for cl_key in rc_desc.originClassKeys if cl_key[1] == 'OriginPrimary'][0]
+                for cls in rc_desc.destinationClassNames:
+                    layer_id = self.pattern.findall(cls)[0]
+                    if layer_id == desc.name:
+                        continue
+                    rc_class_info[layer_id] = {cl_key[1]: cl_key[0] for cl_key in rc_desc.originClassKeys}
+        else:
+            workspace = self.get_workspace(desc.catalogPath)
+            for rc_name in desc.relationshipClassNames:
+                rc = str(workspace / rc_name)
+                if not arcpy.Exists(rc):
+                    continue
                 rc_desc = arcpy.Describe(rc)
                 if rc_desc.isAttachmentRelationship:
                     continue
@@ -72,6 +103,7 @@ class SelectRelated(object):
                     if cls == desc.name:
                         continue
                     rc_class_info[cls] = {cl_key[1]: cl_key[0] for cl_key in rc_desc.originClassKeys}
+
         return rc_class_info
 
     def main(self):
@@ -172,4 +204,4 @@ class SelectRelated(object):
 
 if __name__ == '__main__':
     SelectRelated(project="C:\_MyFiles\github\SelectRelateRecords\sample\SelectRelated.aprx",
-                  pro_map="Map").main()
+                  pro_map="Electric_FGDB").main()
